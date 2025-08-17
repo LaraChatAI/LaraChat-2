@@ -39,6 +39,35 @@ class InitializeConversationSessionJob implements ShouldQueue
 
         Storage::put($this->conversation->filename, json_encode($sessionData, JSON_PRETTY_PRINT));
 
+        // For blank repository, ensure the base directory exists
+        if (empty($this->conversation->repository)) {
+            $baseDir = storage_path('app/private/repositories/base');
+            
+            // Create base directory if it doesn't exist
+            if (!File::exists($baseDir)) {
+                File::makeDirectory($baseDir, 0755, true);
+                
+                // Initialize as a git repository
+                Process::path($baseDir)->run('git init');
+                Process::path($baseDir)->run('git config user.name "Lara"');
+                Process::path($baseDir)->run('git config user.email "lara@example.com"');
+                
+                // Create an initial commit
+                File::put($baseDir . '/.gitkeep', '');
+                Process::path($baseDir)->run('git add .');
+                Process::path($baseDir)->run('git commit -m "Initial commit"');
+                
+                Log::info('InitializeConversationSessionJob: Created base directory for blank repository', [
+                    'base_dir' => $baseDir,
+                ]);
+            }
+            
+            Log::info('InitializeConversationSessionJob: Using base directory for blank repository', [
+                'project_directory' => $this->conversation->project_directory,
+            ]);
+            return;
+        }
+
         $from = storage_path('app/private/repositories/hot/' . $this->conversation->repository);
 
         if (!File::exists($from)) {

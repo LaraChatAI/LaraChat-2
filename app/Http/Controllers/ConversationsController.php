@@ -102,9 +102,14 @@ class ConversationsController extends Controller
         $project_id = uniqid();
         $msg = $request->input('message');
         
-        // Get base project directory from .env
-        $baseProjectDirectory = env('PROJECTS_DIRECTORY', 'app/private/repositories');
-        $projectDirectory = rtrim($baseProjectDirectory, '/') . '/' . $project_id;
+        // For blank repository, use the base directory
+        if (empty($request->input('repository'))) {
+            $projectDirectory = 'app/private/repositories/base';
+        } else {
+            // Get base project directory from .env
+            $baseProjectDirectory = env('PROJECTS_DIRECTORY', 'app/private/repositories');
+            $projectDirectory = rtrim($baseProjectDirectory, '/') . '/' . $project_id;
+        }
 
         $conversation = Conversation::query()->create([
             'user_id' => Auth::id(),

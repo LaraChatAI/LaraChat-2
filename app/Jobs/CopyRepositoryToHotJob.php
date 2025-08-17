@@ -28,6 +28,12 @@ class CopyRepositoryToHotJob implements ShouldQueue
 
     public function handle(): void
     {
+        // Skip if repository is blank/empty
+        if (empty($this->repository)) {
+            Log::info('CopyRepositoryToHot: Skipping blank repository');
+            return;
+        }
+
         $basePath = storage_path('app/private/repositories/base/' . $this->repository);
         $hotPath = storage_path('app/private/repositories/hot/' . $this->repository);
 
