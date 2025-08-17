@@ -76,51 +76,23 @@ class InitializeConversationSessionJob implements ShouldQueue
         
         File::moveDirectory($from, $to, true);
 
-        // Only run git commands if the directory exists after move
+        // Verify the directory exists after move
         if (!File::exists($to)) {
             Log::error('InitializeConversationSessionJob: Failed to move repository directory', [
                 'from' => $from,
                 'to' => $to,
                 'repository' => $this->conversation->repository,
             ]);
-            return;
-        }
-
-        // Update the Git repository in the moved directory using system-update script
-        try {
-            $scriptPath = base_path('scripts/system-update.sh');
-            
-            // Make sure the script is executable
-            if (File::exists($scriptPath)) {
-                chmod($scriptPath, 0755);
-            }
-            
-            // Run the system-update script in the project directory
-            $result = Process::path($to)
-                ->timeout(120) // 2 minutes timeout
-                ->run('bash ' . escapeshellarg($scriptPath));
-            
-            if (!$result->successful()) {
-                throw new \RuntimeException("system-update script failed. Output: " . $result->errorOutput());
-            }
-            
-            Log::info('InitializeConversationSessionJob: Updated project repository using system-update script', [
-                'repository' => $this->conversation->repository,
-                'project_directory' => $this->conversation->project_directory,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('InitializeConversationSessionJob: Failed to update project repository using system-update script', [
-                'repository' => $this->conversation->repository,
-                'project_directory' => $this->conversation->project_directory,
-                'error' => $e->getMessage(),
-            ]);
             
             // Mark conversation as failed
             $this->conversation->update(['is_processing' => false]);
-            
-            // Re-throw the exception to fail the job
-            throw $e;
+            return;
         }
+        
+        Log::info('InitializeConversationSessionJob: Successfully moved repository', [
+            'repository' => $this->conversation->repository,
+            'project_directory' => $this->conversation->project_directory,
+        ]);
     }
 
 }
