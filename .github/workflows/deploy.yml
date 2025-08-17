@@ -1,0 +1,226 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - master
+      - production
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: laravel-app
+  ECS_SERVICE: laravel-service
+  ECS_CLUSTER: laravel-cluster
+  ECS_TASK_DEFINITION: laravel-task
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, bcmath, sqlite3, pdo_sqlite
+          coverage: none
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install PHP dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --optimize-autoloader
+      
+      - name: Install Node dependencies
+        run: npm ci
+      
+      - name: Run PHP tests
+        run: composer test
+      
+      - name: Run frontend build
+        run: npm run build
+      
+      - name: Run linting
+        run: |
+          npm run lint
+          npm run format:check
+
+  deploy-ec2:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.environment == 'production'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      
+      - name: Build application
+        run: |
+          npm ci
+          npm run build
+          composer install --no-dev --optimize-autoloader
+      
+      - name: Create deployment package
+        run: |
+          tar -czf deploy.tar.gz \
+            --exclude=node_modules \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=tests \
+            --exclude=.env \
+            --exclude=storage/app/* \
+            --exclude=storage/logs/* \
+            --exclude=storage/framework/cache/* \
+            --exclude=storage/framework/sessions/* \
+            --exclude=storage/framework/views/* \
+            .
+      
+      - name: Upload to S3
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          aws s3 cp deploy.tar.gz s3://${{ secrets.S3_DEPLOYMENT_BUCKET }}/releases/${TIMESTAMP}/deploy.tar.gz
+      
+      - name: Deploy to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          echo "$EC2_KEY" > deploy_key.pem
+          chmod 600 deploy_key.pem
+          
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          
+          ssh -o StrictHostKeyChecking=no -i deploy_key.pem $EC2_USER@$EC2_HOST << EOF
+            set -e
+            
+            # Download deployment package from S3
+            aws s3 cp s3://${{ secrets.S3_DEPLOYMENT_BUCKET }}/releases/${TIMESTAMP}/deploy.tar.gz /tmp/
+            
+            # Backup current deployment
+            if [ -d /var/www/app ]; then
+              sudo tar -czf /var/www/backups/backup_${TIMESTAMP}.tar.gz -C /var/www/app .
+            fi
+            
+            # Extract new deployment
+            sudo tar -xzf /tmp/deploy.tar.gz -C /var/www/app
+            
+            # Set permissions
+            sudo chown -R www-data:www-data /var/www/app
+            sudo chmod -R 755 /var/www/app
+            sudo chmod -R 775 /var/www/app/storage
+            sudo chmod -R 775 /var/www/app/bootstrap/cache
+            
+            # Run Laravel commands
+            cd /var/www/app
+            sudo -u www-data composer install --no-dev --optimize-autoloader
+            sudo -u www-data php artisan config:cache
+            sudo -u www-data php artisan route:cache
+            sudo -u www-data php artisan view:cache
+            sudo -u www-data php artisan migrate --force
+            sudo -u www-data php artisan queue:restart
+            
+            # Reload services
+            sudo systemctl reload php8.3-fpm
+            sudo systemctl reload nginx
+            
+            # Cleanup
+            rm /tmp/deploy.tar.gz
+          EOF
+          
+          rm deploy_key.pem
+
+  deploy-ecs:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f deploy/docker/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+      
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --force-new-deployment
+      
+      - name: Wait for service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }}
+
+  notify:
+    needs: [deploy-ec2, deploy-ecs]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Notify deployment status
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          text: |
+            Deployment ${{ job.status }}
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref }}
+            Commit: ${{ github.sha }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
