@@ -91,6 +91,7 @@ class ClaudeController extends Controller
             'sessionFilename' => 'nullable|string',
             'conversationId' => 'nullable|integer|exists:conversations,id',
             'repositoryPath' => 'nullable|string',
+            'mode' => 'nullable|string|in:plan,bypassPermissions',
         ]);
 
         $conversationId = $request->input('conversationId');
@@ -116,6 +117,7 @@ class ClaudeController extends Controller
                 'is_processing' => true,
                 'claude_session_id' => $request->input('sessionId'),
                 'project_directory' => $request->input('repositoryPath'),
+                'mode' => $request->input('mode', 'plan'),
             ]);
             
             $conversationId = $conversation->id;

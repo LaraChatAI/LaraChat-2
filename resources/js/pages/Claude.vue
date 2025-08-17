@@ -14,7 +14,7 @@ import { type BreadcrumbItem } from '@/types';
 import { extractTextFromResponse } from '@/utils/claudeResponseParser';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Archive, ArchiveRestore, Eye, EyeOff, ExternalLink, GitBranch, Send } from 'lucide-vue-next';
+import { Archive, ArchiveRestore, Eye, EyeOff, ExternalLink, GitBranch, Send, Code, MapPin } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 // Constants
@@ -69,6 +69,7 @@ const pendingUpdates = ref<any[]>([]);
 const isArchived = ref(props.isArchived || false);
 const isArchiving = ref(false);
 const showArchiveConfirm = ref(false);
+const selectedMode = ref<'coding' | 'planning'>('coding');
 
 // Polling state
 const pollingInterval = ref<number | null>(null);
@@ -475,6 +476,7 @@ const sendMessage = async () => {
                 sessionFilename: sessionFilename.value,
                 repositoryPath: selectedRepositoryData.value?.local_path,
                 conversationId: conversationId.value || undefined,
+                mode: selectedMode.value === 'coding' ? 'bypassPermissions' : 'plan',
             },
             (text, rawResponse) => {
                 // Extract session ID from init response
@@ -622,6 +624,24 @@ const openPreview = () => {
     window.open(url, '_blank');
 };
 
+const updateConversationMode = async (mode: 'coding' | 'planning') => {
+    if (!conversationId.value) return;
+    
+    try {
+        await axios.put(`/api/conversations/${conversationId.value}`, {
+            mode: mode === 'coding' ? 'bypassPermissions' : 'plan',
+        });
+        selectedMode.value = mode;
+        
+        // Update local conversation object
+        if (conversation.value) {
+            conversation.value.mode = mode === 'coding' ? 'bypassPermissions' : 'plan';
+        }
+    } catch (error) {
+        console.error('Error updating conversation mode:', error);
+    }
+};
+
 // Watchers
 watch(
     () => props.sessionFile,
@@ -686,6 +706,8 @@ watch(
             const updatedConv = conversations.value.find(c => c.id === conversationId.value);
             if (updatedConv) {
                 conversation.value = updatedConv;
+                // Update selectedMode based on conversation mode
+                selectedMode.value = updatedConv.mode === 'bypassPermissions' ? 'coding' : 'planning';
             }
         }
     },
@@ -699,12 +721,16 @@ const fetchConversation = async (id: number) => {
         const foundConv = conversations.value.find(c => c.id === id);
         if (foundConv) {
             conversation.value = foundConv;
+            // Update selectedMode based on conversation mode
+            selectedMode.value = foundConv.mode === 'bypassPermissions' ? 'coding' : 'planning';
         } else {
             // If not found, fetch conversations and try again
             await fetchConversations(true, true);
             const foundConvAfterFetch = conversations.value.find(c => c.id === id);
             if (foundConvAfterFetch) {
                 conversation.value = foundConvAfterFetch;
+                // Update selectedMode based on conversation mode
+                selectedMode.value = foundConvAfterFetch.mode === 'bypassPermissions' ? 'coding' : 'planning';
             }
         }
     } catch (error) {
@@ -783,6 +809,26 @@ onUnmounted(() => {
 <template>
     <AppLayout :breadcrumbs="breadcrumbs">
         <template #header-actions>
+            <div v-if="conversationId && !isArchived" class="mr-2 inline-flex rounded-lg border p-1">
+                <Button
+                    @click="updateConversationMode('coding')"
+                    :variant="selectedMode === 'coding' ? 'default' : 'ghost'"
+                    size="sm"
+                    class="gap-2"
+                >
+                    <Code class="h-4 w-4" />
+                    Coding Mode
+                </Button>
+                <Button
+                    @click="updateConversationMode('planning')"
+                    :variant="selectedMode === 'planning' ? 'default' : 'ghost'"
+                    size="sm"
+                    class="gap-2"
+                >
+                    <MapPin class="h-4 w-4" />
+                    Planning Mode
+                </Button>
+            </div>
             <Button
                 v-if="conversationId && conversations.find(c => c.id === conversationId)?.project_directory"
                 @click="openPreview"

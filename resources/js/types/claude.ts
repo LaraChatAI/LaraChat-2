@@ -21,4 +21,5 @@ export interface ClaudeApiRequest {
     sessionFilename: string;
     repositoryPath?: string;
     conversationId?: number;
+    mode?: string;
 }
