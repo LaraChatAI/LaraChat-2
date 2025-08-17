@@ -177,9 +177,20 @@ class RepositoryController extends Controller
      */
     public function destroy(Repository $repository)
     {
+        // Delete base repository folder
         $fullPath = storage_path('app/private/' . $repository->local_path);
         if (file_exists($fullPath)) {
             Process::run("rm -rf {$fullPath}");
+        }
+        
+        // Delete hot folders if they exist
+        $repoName = $this->extractRepoName($repository->url);
+        $hotPattern = storage_path('app/private/repositories/hot/' . $repoName);
+        $hotFolders = glob($hotPattern);
+        foreach ($hotFolders as $hotFolder) {
+            if (file_exists($hotFolder)) {
+                Process::run("rm -rf {$hotFolder}");
+            }
         }
 
         // Delete database record

@@ -1,12 +1,28 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import EnvFileModal from '@/components/EnvFileModal.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Activity, ArrowRight, FileCode, FileKey2, MessageSquare, Send, Sparkles } from 'lucide-vue-next';
-import { onMounted, ref } from 'vue';
+import { Activity, ArrowRight, FileCode, FileKey2, MessageSquare, Send, Settings, Sparkles, Trash2 } from 'lucide-vue-next';
+import { ref } from 'vue';
 
 const props = defineProps<{
     repository: {
@@ -34,6 +50,9 @@ const props = defineProps<{
 
 const messageInput = ref('');
 const showEnvModal = ref(false);
+const showDeleteModal = ref(false);
+const deleteConfirmation = ref('');
+const isDeleting = ref(false);
 
 const startChatWithMessage = (message?: string) => {
     const finalMessage = message || messageInput.value.trim();
@@ -52,6 +71,23 @@ const quickMessages = [
     { text: 'Review recent changes', icon: '🔍' },
     { text: 'Help me debug an issue', icon: '🐛' },
 ];
+
+const handleDelete = async () => {
+    if (deleteConfirmation.value !== props.repository.name) {
+        return;
+    }
+    
+    isDeleting.value = true;
+    try {
+        await axios.delete(`/api/repositories/${props.repository.id}`);
+        router.visit('/repositories');
+    } catch (error) {
+        console.error('Failed to delete repository:', error);
+        alert('Failed to delete repository. Please try again.');
+    } finally {
+        isDeleting.value = false;
+    }
+};
 </script>
 
 <template>
@@ -65,6 +101,23 @@ const quickMessages = [
                 <FileKey2 class="mr-2 h-4 w-4" />
                 Environment
             </Button>
+            
+            <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                    <Button variant="outline" size="sm">
+                        <Settings class="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                        @click="showDeleteModal = true"
+                        class="text-destructive focus:text-destructive"
+                    >
+                        <Trash2 class="mr-2 h-4 w-4" />
+                        Delete Repository
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </template>
         
         <div class="container mx-auto py-6">
@@ -145,5 +198,49 @@ const quickMessages = [
             v-model="showEnvModal"
             :repository-id="repository.id"
         />
+        
+        <!-- Delete Confirmation Modal -->
+        <Dialog v-model:open="showDeleteModal">
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Delete Repository</DialogTitle>
+                    <DialogDescription>
+                        This action cannot be undone. This will permanently delete the
+                        <strong>{{ repository.name }}</strong> repository and all associated data.
+                    </DialogDescription>
+                </DialogHeader>
+                
+                <div class="space-y-4 py-4">
+                    <div class="space-y-2">
+                        <Label for="delete-confirm">
+                            Type <strong>{{ repository.name }}</strong> to confirm
+                        </Label>
+                        <Input
+                            id="delete-confirm"
+                            v-model="deleteConfirmation"
+                            placeholder="Enter repository name"
+                            @keydown.enter="handleDelete"
+                        />
+                    </div>
+                </div>
+                
+                <DialogFooter>
+                    <Button
+                        variant="outline"
+                        @click="showDeleteModal = false"
+                        :disabled="isDeleting"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        @click="handleDelete"
+                        :disabled="deleteConfirmation !== repository.name || isDeleting"
+                    >
+                        {{ isDeleting ? 'Deleting...' : 'Delete Repository' }}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </AppLayout>
 </template>
