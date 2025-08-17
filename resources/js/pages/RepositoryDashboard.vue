@@ -62,6 +62,7 @@ const startChatWithMessage = (message?: string) => {
         router.get('/claude/new', {
             message: finalMessage,
             repository: props.repository.name,
+            mode: selectedMode.value === 'coding' ? 'bypassPermissions' : 'plan',
         });
     }
 };

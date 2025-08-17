@@ -90,6 +90,7 @@ class ConversationsController extends Controller
         $request->validate([
             'message' => 'required|string',
             'repository' => 'nullable|string',
+            'mode' => 'nullable|string|in:plan,bypassPermissions',
         ]);
 
         $project_id = uniqid();
@@ -108,6 +109,7 @@ class ConversationsController extends Controller
             'repository' => $request->input('repository'),
             'filename' => 'claude-sessions/' . date('Y-m-d\TH-i-s') . '-session-' . $project_id . '.json',
             'is_processing' => true, // Mark as processing when created
+            'mode' => $request->input('mode', 'plan'), // Default to 'plan' if not specified
         ]);
 
         Bus::chain([

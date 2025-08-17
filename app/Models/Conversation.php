@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $filename
  * @property bool $is_processing
  * @property bool $archived
+ * @property string $mode
  */
 class Conversation extends Model
 {
@@ -33,6 +34,7 @@ class Conversation extends Model
         'filename',
         'is_processing',
         'archived',
+        'mode',
     ];
 
     protected $casts = [
