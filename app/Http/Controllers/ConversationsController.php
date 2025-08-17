@@ -176,6 +176,41 @@ class ConversationsController extends Controller
     }
 
     /**
+     * Update conversation
+     * 
+     * Update conversation properties like mode
+     * 
+     * @authenticated
+     * 
+     * @urlParam conversation integer required The ID of the conversation. Example: 1
+     * @bodyParam mode string required The conversation mode. Example: plan
+     * 
+     * @response 200 scenario="Success" {
+     *   "message": "Conversation updated successfully"
+     * }
+     * 
+     * @response 403 scenario="Unauthorized" {
+     *   "error": "Unauthorized"
+     * }
+     */
+    public function update(Request $request, Conversation $conversation)
+    {
+        // Check if user owns this conversation
+        if ($conversation->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized');
+        }
+
+        $request->validate([
+            'mode' => 'required|string|in:plan,bypassPermissions',
+        ]);
+
+        $conversation->mode = $request->input('mode');
+        $conversation->save();
+
+        return response()->json(['message' => 'Conversation updated successfully']);
+    }
+
+    /**
      * List archived conversations
      * 
      * Get a list of all archived conversations for the authenticated user

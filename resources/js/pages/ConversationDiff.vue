@@ -92,6 +92,11 @@ const fileDiffs = computed(() => {
         files.push(currentFile);
     }
     
+    // Auto-expand if only one file
+    if (files.length === 1 && expandedFiles.value.size === 0) {
+        expandedFiles.value = new Set([files[0].fileName]);
+    }
+    
     return files;
 });
 
@@ -233,32 +238,37 @@ const goBack = () => {
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                             <CardContent class="p-0">
-                                <div class="bg-muted/30 overflow-x-auto">
-                                    <pre class="p-4">
-                                        <code class="text-sm font-mono">
-                                            <div 
-                                                v-for="(line, index) in file.lines" 
-                                                :key="index" 
-                                                class="hover:bg-muted/50"
+                                <div class="overflow-x-auto bg-slate-900 dark:bg-slate-950 rounded-b-lg border-t border-slate-800">
+                                    <div class="font-mono text-sm">
+                                        <div 
+                                            v-for="(line, index) in file.lines" 
+                                            :key="index" 
+                                            :class="{
+                                                'bg-green-950/30 border-l-4 border-green-500': line.type === 'addition',
+                                                'bg-red-950/30 border-l-4 border-red-500': line.type === 'deletion',
+                                                'bg-blue-950/50 px-4 py-2 font-semibold': line.type === 'chunk',
+                                                'bg-yellow-950/30 px-4 py-1': line.type === 'header',
+                                                'hover:bg-slate-800/30': line.type === 'normal'
+                                            }"
+                                            class="flex transition-colors duration-150"
+                                        >
+                                            <span 
+                                                class="inline-block w-14 text-right pr-4 select-none text-slate-500 flex-shrink-0 py-1"
                                                 :class="{
-                                                    'bg-green-500/10': line.type === 'addition',
-                                                    'bg-red-500/10': line.type === 'deletion'
+                                                    'bg-slate-900/50': line.type === 'addition' || line.type === 'deletion'
                                                 }"
-                                            >
-                                                <span 
-                                                    class="inline-block w-12 text-right pr-4 select-none text-muted-foreground text-xs"
-                                                >{{ line.type !== 'header' ? line.number : '' }}</span><span
-                                                    :class="{
-                                                        'text-green-600 dark:text-green-400': line.type === 'addition',
-                                                        'text-red-600 dark:text-red-400': line.type === 'deletion',
-                                                        'text-blue-600 dark:text-blue-400 font-bold': line.type === 'chunk',
-                                                        'text-muted-foreground': line.type === 'header',
-                                                        '': line.type === 'normal'
-                                                    }"
-                                                >{{ line.content }}</span>
-                                            </div>
-                                        </code>
-                                    </pre>
+                                            >{{ line.type !== 'header' && line.type !== 'chunk' ? line.number : '' }}</span>
+                                            <pre class="flex-1 overflow-x-auto py-1 pr-4"><code
+                                                :class="{
+                                                    'text-green-400': line.type === 'addition',
+                                                    'text-red-400': line.type === 'deletion',
+                                                    'text-blue-400': line.type === 'chunk',
+                                                    'text-yellow-500': line.type === 'header',
+                                                    'text-slate-300': line.type === 'normal'
+                                                }"
+                                            >{{ line.content }}</code></pre>
+                                        </div>
+                                    </div>
                                 </div>
                             </CardContent>
                         </CollapsibleContent>
@@ -274,9 +284,16 @@ pre {
     white-space: pre;
     word-wrap: normal;
     overflow-x: auto;
+    margin: 0;
 }
 
 code {
-    display: block;
+    display: inline;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.flex-1 pre {
+    background: transparent;
+    padding: 0;
 }
 </style>
