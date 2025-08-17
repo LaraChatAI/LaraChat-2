@@ -171,6 +171,32 @@ onUnmounted(() => {
     <Head title="LaraChat - AI-Powered Chat Application" />
     
     <div class="min-h-screen bg-gradient-to-b from-background to-muted/20">
+        <!-- Header -->
+        <header class="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div class="mx-auto max-w-7xl px-6 lg:px-8">
+                <div class="flex h-16 items-center justify-between">
+                    <div class="flex items-center">
+                        <Link href="/" class="flex items-center space-x-2">
+                            <MessageSquare class="h-8 w-8 text-primary" />
+                            <span class="text-xl font-bold">LaraChat</span>
+                        </Link>
+                    </div>
+                    <nav class="flex items-center space-x-4">
+                        <Link href="/login">
+                            <Button variant="ghost">
+                                Log in
+                            </Button>
+                        </Link>
+                        <Link href="/register">
+                            <Button>
+                                Sign up
+                            </Button>
+                        </Link>
+                    </nav>
+                </div>
+            </div>
+        </header>
+
         <!-- Hero Section -->
         <section class="relative overflow-hidden px-6 py-24 sm:py-32 lg:px-8">
             <div class="absolute inset-0 -z-10 bg-[radial-gradient(45rem_50rem_at_top,theme(colors.indigo.100),white)] dark:bg-[radial-gradient(45rem_50rem_at_top,theme(colors.indigo.900/20),transparent)]" />
