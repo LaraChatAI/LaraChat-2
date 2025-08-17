@@ -18,7 +18,7 @@ import { useConversations } from '@/composables/useConversations';
 import { useRepositories } from '@/composables/useRepositories';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { GitBranch, Loader2, MessageSquarePlus, Plus } from 'lucide-vue-next';
+import { Bot, GitBranch, Loader2, MessageSquarePlus, Plus } from 'lucide-vue-next';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -141,6 +141,18 @@ const handleLinkClick = () => {
         setOpenMobile(false);
     }
 };
+
+const handleAskLara = () => {
+    if (isMobile.value) {
+        setOpenMobile(false);
+    }
+    // Create a new conversation in planning mode with repositories/base as directory
+    const message = btoa('Hello Lara! I need help with my project.');
+    router.visit(`/claude/new?repository=repositories/base&mode=plan&message=${message}`, {
+        preserveScroll: true,
+        preserveState: true,
+    });
+};
 </script>
 
 <template>
@@ -158,6 +170,17 @@ const handleLinkClick = () => {
         </SidebarHeader>
 
         <SidebarContent>
+            <SidebarGroup class="px-2 py-0">
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton @click="handleAskLara" class="w-full">
+                            <Bot />
+                            <span>Ask Lara</span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarGroup>
+            
             <SidebarGroup class="px-2 py-0">
                 <div class="flex items-center justify-between">
                     <SidebarGroupLabel>Repositories</SidebarGroupLabel>
