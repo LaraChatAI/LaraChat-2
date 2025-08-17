@@ -146,9 +146,9 @@ const handleAskLara = () => {
     if (isMobile.value) {
         setOpenMobile(false);
     }
-    // Create a new conversation in planning mode with repositories/base as directory
+    // Create a new conversation in planning mode with blank repository
     const message = btoa('Hello Lara! I need help with my project.');
-    router.visit(`/claude/new?repository=repositories/base&mode=plan&message=${message}`, {
+    router.visit(`/claude/new?repository=&mode=plan&message=${message}`, {
         preserveScroll: true,
         preserveState: true,
     });

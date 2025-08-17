@@ -94,6 +94,11 @@ class ConversationsController extends Controller
             'mode' => 'nullable|string|in:plan,bypassPermissions',
         ]);
 
+        // Only allow blank repository when in plan mode
+        if (empty($request->input('repository')) && $request->input('mode', 'plan') !== 'plan') {
+            return back()->withErrors(['repository' => 'A repository is required when not in planning mode.']);
+        }
+
         $project_id = uniqid();
         $msg = $request->input('message');
         
@@ -145,7 +150,10 @@ class ConversationsController extends Controller
         $conversation->archived = true;
         $conversation->save();
 
-        DeleteProjectDirectoryJob::dispatch($conversation);
+        // Only dispatch delete job if conversation has blank repository
+        if (empty($conversation->repository)) {
+            DeleteProjectDirectoryJob::dispatch($conversation);
+        }
 
         return response()->json(['message' => 'Conversation archived successfully']);
     }
