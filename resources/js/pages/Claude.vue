@@ -814,19 +814,17 @@ onUnmounted(() => {
                     @click="updateConversationMode('coding')"
                     :variant="selectedMode === 'coding' ? 'default' : 'ghost'"
                     size="sm"
-                    class="gap-2"
+                    :title="'Coding Mode'"
                 >
                     <Code class="h-4 w-4" />
-                    Coding Mode
                 </Button>
                 <Button
                     @click="updateConversationMode('planning')"
                     :variant="selectedMode === 'planning' ? 'default' : 'ghost'"
                     size="sm"
-                    class="gap-2"
+                    :title="'Planning Mode'"
                 >
                     <MapPin class="h-4 w-4" />
-                    Planning Mode
                 </Button>
             </div>
             <Button
