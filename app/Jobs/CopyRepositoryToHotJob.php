@@ -7,6 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use App\Models\Repository;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
@@ -38,12 +39,26 @@ class CopyRepositoryToHotJob implements ShouldQueue
         $hotPath = storage_path('app/private/repositories/hot/' . $this->repository);
 
         if (!is_dir($basePath)) {
-            Log::error('CopyRepositoryToHot: Missing repository directory', [
+            Log::error('CopyRepositoryToHot: Missing repository directory, deleting from database', [
                 'repository' => $this->repository,
                 'path' => $basePath,
             ]);
 
-            return;
+            // Find and delete the repository from the database
+            $repository = Repository::where('name', $this->repository)
+                ->orWhere('local_path', 'LIKE', '%' . $this->repository . '%')
+                ->first();
+            
+            if ($repository) {
+                $repository->delete();
+                Log::info('CopyRepositoryToHot: Repository deleted from database', [
+                    'repository_id' => $repository->id,
+                    'repository_name' => $this->repository,
+                ]);
+            }
+
+            // Fail the job to trigger retry mechanism if needed
+            throw new \Exception('Base repository directory does not exist: ' . $basePath);
         }
 
         try {
