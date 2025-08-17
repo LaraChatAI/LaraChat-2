@@ -5,7 +5,7 @@ import EnvFileModal from '@/components/EnvFileModal.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Activity, ArrowRight, FileCode, FileKey2, MessageSquare, Send, Sparkles } from 'lucide-vue-next';
+import { Activity, ArrowRight, Code2, FileCode, FileKey2, MessageSquare, Send, Sparkles, Lightbulb } from 'lucide-vue-next';
 import { onMounted, ref } from 'vue';
 
 const props = defineProps<{
@@ -34,6 +34,7 @@ const props = defineProps<{
 
 const messageInput = ref('');
 const showEnvModal = ref(false);
+const selectedMode = ref<'coding' | 'planning'>('coding');
 
 const startChatWithMessage = (message?: string) => {
     const finalMessage = message || messageInput.value.trim();
@@ -99,6 +100,31 @@ const quickMessages = [
                                 <Send class="h-4 w-4" />
                             </Button>
                         </div>
+                        
+                        <!-- Mode Selection -->
+                        <div class="flex items-center justify-center gap-2">
+                            <div class="inline-flex rounded-lg border p-1">
+                                <Button
+                                    @click="selectedMode = 'coding'"
+                                    :variant="selectedMode === 'coding' ? 'default' : 'ghost'"
+                                    size="sm"
+                                    class="gap-2"
+                                >
+                                    <Code2 class="h-4 w-4" />
+                                    Coding Mode
+                                </Button>
+                                <Button
+                                    @click="selectedMode = 'planning'"
+                                    :variant="selectedMode === 'planning' ? 'default' : 'ghost'"
+                                    size="sm"
+                                    class="gap-2"
+                                >
+                                    <Lightbulb class="h-4 w-4" />
+                                    Planning Mode
+                                </Button>
+                            </div>
+                        </div>
+                        
                         <p class="text-xs text-muted-foreground text-center">Press Cmd+Enter (Mac) or Alt+Enter (Windows) to send</p>
                     </div>
 
