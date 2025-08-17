@@ -53,7 +53,7 @@ const showEnvModal = ref(false);
 const showDeleteModal = ref(false);
 const deleteConfirmation = ref('');
 const isDeleting = ref(false);
-const selectedMode = ref<'coding' | 'planning'>('coding');
+const selectedMode = ref<'coding' | 'planning'>('planning');
 
 const startChatWithMessage = (message?: string) => {
     const finalMessage = message || messageInput.value.trim();
@@ -159,15 +159,6 @@ const handleDelete = async () => {
                         <div class="flex items-center justify-center gap-2">
                             <div class="inline-flex rounded-lg border p-1">
                                 <Button
-                                    @click="selectedMode = 'coding'"
-                                    :variant="selectedMode === 'coding' ? 'default' : 'ghost'"
-                                    size="sm"
-                                    class="gap-2"
-                                >
-                                    <Code2 class="h-4 w-4" />
-                                    Coding Mode
-                                </Button>
-                                <Button
                                     @click="selectedMode = 'planning'"
                                     :variant="selectedMode === 'planning' ? 'default' : 'ghost'"
                                     size="sm"
@@ -175,6 +166,15 @@ const handleDelete = async () => {
                                 >
                                     <Lightbulb class="h-4 w-4" />
                                     Planning Mode
+                                </Button>
+                                <Button
+                                    @click="selectedMode = 'coding'"
+                                    :variant="selectedMode === 'coding' ? 'default' : 'ghost'"
+                                    size="sm"
+                                    class="gap-2"
+                                >
+                                    <Code2 class="h-4 w-4" />
+                                    Coding Mode
                                 </Button>
                             </div>
                         </div>
