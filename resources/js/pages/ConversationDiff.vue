@@ -31,10 +31,12 @@ const formattedDiff = computed(() => {
     return lines.map((line, index) => ({
         number: index + 1,
         content: line,
-        type: line.startsWith('+') ? 'addition' : 
+        type: line.startsWith('+++') || line.startsWith('---') ? 'header' :
+              line.startsWith('+') ? 'addition' : 
               line.startsWith('-') ? 'deletion' : 
               line.startsWith('@@') ? 'chunk' :
               line.startsWith('diff --git') ? 'file' :
+              line.startsWith('index ') ? 'meta' :
               'normal'
     }));
 });
@@ -102,23 +104,42 @@ const goBack = () => {
                         </p>
                     </div>
                     <div v-else class="relative">
-                        <pre class="overflow-x-auto bg-muted/30 rounded-lg p-4">
-                            <code class="text-sm font-mono">
-                                <div v-for="line in formattedDiff" :key="line.number" class="hover:bg-muted/50">
+                        <div class="overflow-x-auto bg-slate-900 dark:bg-slate-950 rounded-lg border border-slate-800">
+                            <div class="font-mono text-sm">
+                                <div 
+                                    v-for="line in formattedDiff" 
+                                    :key="line.number" 
+                                    :class="{
+                                        'bg-green-950/30 border-l-4 border-green-500': line.type === 'addition',
+                                        'bg-red-950/30 border-l-4 border-red-500': line.type === 'deletion',
+                                        'bg-blue-950/50 px-4 py-2 font-semibold': line.type === 'chunk',
+                                        'bg-purple-950/50 px-4 py-2 border-b border-slate-800': line.type === 'file',
+                                        'bg-yellow-950/30 px-4 py-1': line.type === 'header',
+                                        'bg-slate-800/30 px-4 py-0.5 text-xs': line.type === 'meta',
+                                        'hover:bg-slate-800/30': line.type === 'normal'
+                                    }"
+                                    class="flex transition-colors duration-150"
+                                >
                                     <span 
-                                        class="inline-block w-12 text-right pr-4 select-none text-muted-foreground text-xs"
-                                    >{{ line.number }}</span><span
+                                        class="inline-block w-14 text-right pr-4 select-none text-slate-500 flex-shrink-0 py-1"
                                         :class="{
-                                            'text-green-600 dark:text-green-400': line.type === 'addition',
-                                            'text-red-600 dark:text-red-400': line.type === 'deletion',
-                                            'text-blue-600 dark:text-blue-400 font-bold': line.type === 'chunk',
-                                            'text-purple-600 dark:text-purple-400 font-bold': line.type === 'file',
-                                            '': line.type === 'normal'
+                                            'bg-slate-900/50': line.type === 'addition' || line.type === 'deletion'
                                         }"
-                                    >{{ line.content }}</span>
+                                    >{{ line.number }}</span>
+                                    <pre class="flex-1 overflow-x-auto py-1 pr-4"><code
+                                        :class="{
+                                            'text-green-400': line.type === 'addition',
+                                            'text-red-400': line.type === 'deletion',
+                                            'text-blue-400': line.type === 'chunk',
+                                            'text-purple-400': line.type === 'file',
+                                            'text-yellow-500': line.type === 'header',
+                                            'text-slate-500': line.type === 'meta',
+                                            'text-slate-300': line.type === 'normal'
+                                        }"
+                                    >{{ line.content }}</code></pre>
                                 </div>
-                            </code>
-                        </pre>
+                            </div>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -131,9 +152,16 @@ pre {
     white-space: pre;
     word-wrap: normal;
     overflow-x: auto;
+    margin: 0;
 }
 
 code {
-    display: block;
+    display: inline;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.flex-1 pre {
+    background: transparent;
+    padding: 0;
 }
 </style>
