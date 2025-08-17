@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Repository;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -24,5 +26,15 @@ class AppServiceProvider extends ServiceProvider
         if (str_starts_with(config('app.url'), 'https://')) {
             \URL::forceScheme('https');
         }
+
+        // Custom route model binding for API routes
+        Route::bind('repository', function ($value) {
+            // If the current route is an API route and value is numeric, bind by ID
+            if (request()->is('api/*') && is_numeric($value)) {
+                return Repository::findOrFail($value);
+            }
+            // Otherwise, use the default behavior (slug)
+            return Repository::where('slug', $value)->firstOrFail();
+        });
     }
 }

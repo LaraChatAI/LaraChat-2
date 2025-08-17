@@ -16,11 +16,11 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::get('/repositories', [RepositoryController::class, 'index']);
     Route::post('/repositories', [RepositoryController::class, 'store']);
-    Route::delete('/repositories/{repository}', [RepositoryController::class, 'destroy']);
-    Route::post('/repositories/{repository}/pull', [RepositoryController::class, 'pull']);
-    Route::post('/repositories/{repository}/copy-to-hot', [RepositoryController::class, 'copyToHot']);
-    Route::get('/repositories/{repository}/env', [RepositoryController::class, 'getEnvFile']);
-    Route::put('/repositories/{repository}/env', [RepositoryController::class, 'updateEnvFile']);
+    Route::delete('/repositories/{repository}', [RepositoryController::class, 'destroy'])->where('repository', '[0-9]+');
+    Route::post('/repositories/{repository}/pull', [RepositoryController::class, 'pull'])->where('repository', '[0-9]+');
+    Route::post('/repositories/{repository}/copy-to-hot', [RepositoryController::class, 'copyToHot'])->where('repository', '[0-9]+');
+    Route::get('/repositories/{repository}/env', [RepositoryController::class, 'getEnvFile'])->where('repository', '[0-9]+');
+    Route::put('/repositories/{repository}/env', [RepositoryController::class, 'updateEnvFile'])->where('repository', '[0-9]+');
 
     Route::get('/conversations', [ConversationsController::class, 'index']);
     Route::post('/conversations', [ConversationsController::class, 'store']);
