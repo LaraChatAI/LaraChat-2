@@ -836,7 +836,7 @@ onUnmounted(() => {
                         :show-raw-responses="false"
                     />
 
-                    <div v-if="isLoading || conversation?.is_processing" class="flex justify-start">
+                    <div v-if="conversation?.is_processing" id="processing-indicator" class="flex justify-start">
                         <div class="max-w-full sm:max-w-[70%] rounded-2xl bg-card px-4 py-2 shadow-sm">
                             <div class="flex space-x-1">
                                 <div class="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:-0.3s]"></div>
