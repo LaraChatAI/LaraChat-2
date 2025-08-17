@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\CopyRepositoryToHotJob;
+use App\Jobs\DeleteProjectDirectoryJob;
 use App\Jobs\InitializeConversationSessionJob;
 use App\Jobs\PrepareProjectDirectoryJob;
 use App\Jobs\SendClaudeMessageJob;
@@ -141,6 +142,8 @@ class ConversationsController extends Controller
     {
         $conversation->archived = true;
         $conversation->save();
+
+        DeleteProjectDirectoryJob::dispatch($conversation);
 
         return response()->json(['message' => 'Conversation archived successfully']);
     }
