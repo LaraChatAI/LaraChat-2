@@ -100,9 +100,13 @@ class SendClaudeMessageJob implements ShouldQueue
                 }
             };
 
+            // Use conversation mode to determine permission mode
+            // If mode is 'plan', use 'plan' permission mode; otherwise use 'bypassPermissions'
+            $permissionMode = $this->conversation->mode === 'plan' ? 'plan' : 'bypassPermissions';
+            
             $result = ClaudeService::processInBackground(
                 $this->message,
-                '--permission-mode bypassPermissions',
+                '--permission-mode ' . $permissionMode,
                 $this->conversation->claude_session_id,
                 $filename,
                 $this->conversation->project_directory,
