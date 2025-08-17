@@ -5,13 +5,29 @@ import { ref, computed } from 'vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { router } from '@inertiajs/vue3';
-import { FileIcon, ChevronLeft, CopyIcon, CheckIcon } from 'lucide-vue-next';
+import { FileIcon, ChevronLeft, CopyIcon, CheckIcon, ChevronDown, ChevronRight, Plus, Minus } from 'lucide-vue-next';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 interface Props {
     conversationId: number;
     diffContent: string;
     conversationTitle: string;
     hasContent: boolean;
+}
+
+interface FileDiff {
+    fileName: string;
+    additions: number;
+    deletions: number;
+    lines: Array<{
+        number: number;
+        content: string;
+        type: string;
+    }>;
 }
 
 const props = defineProps<Props>();
@@ -23,21 +39,81 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const copied = ref(false);
+const expandedFiles = ref<Set<string>>(new Set());
+const expandAll = ref(false);
 
-const formattedDiff = computed(() => {
+const fileDiffs = computed(() => {
     if (!props.diffContent) return [];
     
+    const files: FileDiff[] = [];
     const lines = props.diffContent.split('\n');
-    return lines.map((line, index) => ({
-        number: index + 1,
-        content: line,
-        type: line.startsWith('+') ? 'addition' : 
-              line.startsWith('-') ? 'deletion' : 
-              line.startsWith('@@') ? 'chunk' :
-              line.startsWith('diff --git') ? 'file' :
-              'normal'
-    }));
+    let currentFile: FileDiff | null = null;
+    let lineNumber = 0;
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        if (line.startsWith('diff --git')) {
+            if (currentFile) {
+                files.push(currentFile);
+            }
+            
+            const fileNameMatch = line.match(/diff --git a\/(.*?) b\/(.*)/);
+            const fileName = fileNameMatch ? fileNameMatch[2] : 'Unknown file';
+            
+            currentFile = {
+                fileName,
+                additions: 0,
+                deletions: 0,
+                lines: []
+            };
+            lineNumber = 0;
+        } else if (currentFile) {
+            lineNumber++;
+            currentFile.lines.push({
+                number: lineNumber,
+                content: line,
+                type: line.startsWith('+') ? 'addition' : 
+                      line.startsWith('-') ? 'deletion' : 
+                      line.startsWith('@@') ? 'chunk' :
+                      line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++') ? 'header' :
+                      'normal'
+            });
+            
+            if (line.startsWith('+') && !line.startsWith('+++')) {
+                currentFile.additions++;
+            } else if (line.startsWith('-') && !line.startsWith('---')) {
+                currentFile.deletions++;
+            }
+        }
+    }
+    
+    if (currentFile) {
+        files.push(currentFile);
+    }
+    
+    return files;
 });
+
+const toggleFile = (fileName: string) => {
+    const newSet = new Set(expandedFiles.value);
+    if (newSet.has(fileName)) {
+        newSet.delete(fileName);
+    } else {
+        newSet.add(fileName);
+    }
+    expandedFiles.value = newSet;
+};
+
+const toggleAll = () => {
+    if (expandAll.value) {
+        expandedFiles.value = new Set();
+        expandAll.value = false;
+    } else {
+        expandedFiles.value = new Set(fileDiffs.value.map(f => f.fileName));
+        expandAll.value = true;
+    }
+};
 
 const copyToClipboard = async () => {
     try {
@@ -72,56 +148,123 @@ const goBack = () => {
                     </Button>
                     <h1 class="text-2xl font-bold">Git Diff</h1>
                 </div>
-                <Button
-                    v-if="hasContent"
-                    variant="outline"
-                    size="sm"
-                    @click="copyToClipboard"
-                    class="flex items-center gap-2"
-                >
-                    <CopyIcon v-if="!copied" class="h-4 w-4" />
-                    <CheckIcon v-else class="h-4 w-4 text-green-600" />
-                    {{ copied ? 'Copied!' : 'Copy Diff' }}
-                </Button>
+                <div class="flex items-center gap-2">
+                    <Button
+                        v-if="hasContent && fileDiffs.length > 1"
+                        variant="outline"
+                        size="sm"
+                        @click="toggleAll"
+                        class="flex items-center gap-2"
+                    >
+                        <ChevronDown v-if="!expandAll" class="h-4 w-4" />
+                        <ChevronRight v-else class="h-4 w-4" />
+                        {{ expandAll ? 'Collapse All' : 'Expand All' }}
+                    </Button>
+                    <Button
+                        v-if="hasContent"
+                        variant="outline"
+                        size="sm"
+                        @click="copyToClipboard"
+                        class="flex items-center gap-2"
+                    >
+                        <CopyIcon v-if="!copied" class="h-4 w-4" />
+                        <CheckIcon v-else class="h-4 w-4 text-green-600" />
+                        {{ copied ? 'Copied!' : 'Copy Diff' }}
+                    </Button>
+                </div>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle class="flex items-center gap-2">
-                        <FileIcon class="h-5 w-5" />
-                        <span class="text-sm text-muted-foreground">
-                            {{ conversationTitle }}
-                        </span>
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div v-if="!hasContent" class="text-center py-12 text-muted-foreground">
+            <div v-if="!hasContent" class="text-center py-12 text-muted-foreground">
+                <Card>
+                    <CardContent class="pt-12">
                         <p class="text-lg">No diff available</p>
                         <p class="text-sm mt-2">
                             The diff will appear here after Claude makes changes to your project.
                         </p>
-                    </div>
-                    <div v-else class="relative">
-                        <pre class="overflow-x-auto bg-muted/30 rounded-lg p-4">
-                            <code class="text-sm font-mono">
-                                <div v-for="line in formattedDiff" :key="line.number" class="hover:bg-muted/50">
-                                    <span 
-                                        class="inline-block w-12 text-right pr-4 select-none text-muted-foreground text-xs"
-                                    >{{ line.number }}</span><span
-                                        :class="{
-                                            'text-green-600 dark:text-green-400': line.type === 'addition',
-                                            'text-red-600 dark:text-red-400': line.type === 'deletion',
-                                            'text-blue-600 dark:text-blue-400 font-bold': line.type === 'chunk',
-                                            'text-purple-600 dark:text-purple-400 font-bold': line.type === 'file',
-                                            '': line.type === 'normal'
-                                        }"
-                                    >{{ line.content }}</span>
+                    </CardContent>
+                </Card>
+            </div>
+            
+            <div v-else class="space-y-4">
+                <div class="text-sm text-muted-foreground mb-4">
+                    <span class="font-medium">{{ fileDiffs.length }} file{{ fileDiffs.length === 1 ? '' : 's' }} changed</span>
+                    <span v-if="fileDiffs.reduce((sum, f) => sum + f.additions, 0) > 0" class="ml-4">
+                        <Plus class="inline h-3 w-3 text-green-600" />
+                        <span class="text-green-600">{{ fileDiffs.reduce((sum, f) => sum + f.additions, 0) }} additions</span>
+                    </span>
+                    <span v-if="fileDiffs.reduce((sum, f) => sum + f.deletions, 0) > 0" class="ml-4">
+                        <Minus class="inline h-3 w-3 text-red-600" />
+                        <span class="text-red-600">{{ fileDiffs.reduce((sum, f) => sum + f.deletions, 0) }} deletions</span>
+                    </span>
+                </div>
+
+                <Card v-for="file in fileDiffs" :key="file.fileName" class="overflow-hidden">
+                    <Collapsible :open="expandedFiles.has(file.fileName)">
+                        <CollapsibleTrigger
+                            @click="toggleFile(file.fileName)"
+                            class="w-full"
+                        >
+                            <CardHeader class="hover:bg-muted/50 transition-colors cursor-pointer">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <ChevronRight 
+                                            v-if="!expandedFiles.has(file.fileName)" 
+                                            class="h-4 w-4 transition-transform" 
+                                        />
+                                        <ChevronDown 
+                                            v-else 
+                                            class="h-4 w-4 transition-transform" 
+                                        />
+                                        <FileIcon class="h-4 w-4" />
+                                        <span class="font-mono text-sm">{{ file.fileName }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-3 text-xs">
+                                        <span v-if="file.additions > 0" class="text-green-600 flex items-center gap-1">
+                                            <Plus class="h-3 w-3" />
+                                            {{ file.additions }}
+                                        </span>
+                                        <span v-if="file.deletions > 0" class="text-red-600 flex items-center gap-1">
+                                            <Minus class="h-3 w-3" />
+                                            {{ file.deletions }}
+                                        </span>
+                                    </div>
                                 </div>
-                            </code>
-                        </pre>
-                    </div>
-                </CardContent>
-            </Card>
+                            </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                            <CardContent class="p-0">
+                                <div class="bg-muted/30 overflow-x-auto">
+                                    <pre class="p-4">
+                                        <code class="text-sm font-mono">
+                                            <div 
+                                                v-for="(line, index) in file.lines" 
+                                                :key="index" 
+                                                class="hover:bg-muted/50"
+                                                :class="{
+                                                    'bg-green-500/10': line.type === 'addition',
+                                                    'bg-red-500/10': line.type === 'deletion'
+                                                }"
+                                            >
+                                                <span 
+                                                    class="inline-block w-12 text-right pr-4 select-none text-muted-foreground text-xs"
+                                                >{{ line.type !== 'header' ? line.number : '' }}</span><span
+                                                    :class="{
+                                                        'text-green-600 dark:text-green-400': line.type === 'addition',
+                                                        'text-red-600 dark:text-red-400': line.type === 'deletion',
+                                                        'text-blue-600 dark:text-blue-400 font-bold': line.type === 'chunk',
+                                                        'text-muted-foreground': line.type === 'header',
+                                                        '': line.type === 'normal'
+                                                    }"
+                                                >{{ line.content }}</span>
+                                            </div>
+                                        </code>
+                                    </pre>
+                                </div>
+                            </CardContent>
+                        </CollapsibleContent>
+                    </Collapsible>
+                </Card>
+            </div>
         </div>
     </AppLayout>
 </template>
