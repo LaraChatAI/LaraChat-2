@@ -8,8 +8,16 @@ use Inertia\Inertia;
 
 class RepositoryDashboardController extends Controller
 {
-    public function show(Repository $repository)
+    public function show()
     {
+        $repositoryName = request()->query('repository');
+        
+        if (!$repositoryName) {
+            abort(404, 'Repository parameter is required');
+        }
+        
+        $repository = Repository::where('name', $repositoryName)->firstOrFail();
+        
         // Get repository stats
         $stats = $this->getRepositoryStats($repository);
 

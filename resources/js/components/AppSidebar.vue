@@ -120,11 +120,11 @@ const handleCloneRepository = async () => {
     }
 };
 
-const handleRepositoryClick = (repositorySlug: string) => {
+const handleRepositoryClick = (repositoryName: string) => {
     if (isMobile.value) {
         setOpenMobile(false);
     }
-    router.visit(`/repository/${repositorySlug}`, {
+    router.visit(`/repository?repository=${encodeURIComponent(repositoryName)}`, {
         preserveScroll: true,
         preserveState: true,
     });
@@ -199,7 +199,7 @@ const handleAskLara = () => {
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem v-for="repo in repositories" :key="repo.id">
-                        <SidebarMenuButton @click="handleRepositoryClick(repo.slug)" :tooltip="repo.url">
+                        <SidebarMenuButton @click="handleRepositoryClick(repo.name)" :tooltip="repo.url">
                             <GitBranch />
                             <span class="flex-1 truncate">{{ repo.name }}</span>
                         </SidebarMenuButton>
