@@ -20,10 +20,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $is_processing
  * @property bool $archived
  * @property string $mode
+ * @property string|null $pr_url
  */
 class Conversation extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'user_id',
         'title',
@@ -35,6 +37,7 @@ class Conversation extends Model
         'is_processing',
         'archived',
         'mode',
+        'pr_url',
     ];
 
     protected $casts = [

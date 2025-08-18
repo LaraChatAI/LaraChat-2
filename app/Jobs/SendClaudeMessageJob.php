@@ -16,6 +16,7 @@ class SendClaudeMessageJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected Conversation $conversation;
+
     protected string $message;
 
     public function __construct(Conversation $conversation, string $message)
@@ -28,10 +29,11 @@ class SendClaudeMessageJob implements ShouldQueue
     {
         try {
             // Validate conversation exists and is valid
-            if (!$this->conversation->exists) {
+            if (! $this->conversation->exists) {
                 Log::warning('Conversation no longer exists', [
-                    'conversation_id' => $this->conversation->id
+                    'conversation_id' => $this->conversation->id,
                 ]);
+
                 return;
             }
 
@@ -44,32 +46,33 @@ class SendClaudeMessageJob implements ShouldQueue
                 } else {
                     $projectPath = storage_path($this->conversation->project_directory);
                 }
-                
-                if (!is_dir($projectPath)) {
+
+                if (! is_dir($projectPath)) {
                     Log::error('Project directory does not exist', [
                         'conversation_id' => $this->conversation->id,
                         'project_directory' => $this->conversation->project_directory,
-                        'full_path' => $projectPath
+                        'full_path' => $projectPath,
                     ]);
-                    
+
                     $this->conversation->update([
                         'is_processing' => false,
-                        'error_message' => 'Project directory not found: ' . $this->conversation->project_directory
+                        'error_message' => 'Project directory not found: '.$this->conversation->project_directory,
                     ]);
+
                     return;
                 }
             }
 
             // Filename should already be set by the controller
             $filename = $this->conversation->filename;
-            
+
             // If for some reason it's not set, generate it
-            if (!$filename) {
+            if (! $filename) {
                 $timestamp = now()->format('Y-m-d\TH-i-s');
                 $tempId = substr(uniqid(), -12);
                 $filename = "claude-sessions/{$timestamp}-session-{$tempId}.json";
                 $this->conversation->update(['filename' => $filename]);
-                
+
                 // Also save the user message if we had to generate filename
                 ClaudeService::saveUserMessage(
                     $this->message,
@@ -82,20 +85,20 @@ class SendClaudeMessageJob implements ShouldQueue
 
             // Create a progress callback to update the conversation in real-time
             $progressCallback = function ($type, $data) {
-                if ($type === 'sessionId' && !$this->conversation->claude_session_id) {
+                if ($type === 'sessionId' && ! $this->conversation->claude_session_id) {
                     $this->conversation->update(['claude_session_id' => $data]);
                     Log::info('Updated conversation with session ID', [
                         'conversation_id' => $this->conversation->id,
-                        'sessionId' => $data
+                        'sessionId' => $data,
                     ]);
                 } elseif ($type === 'response') {
                     // Update the conversation's updated_at timestamp to signal new content
                     $this->conversation->touch();
-                    
+
                     Log::debug('Progress update', [
                         'conversation_id' => $this->conversation->id,
                         'filename' => $data['filename'],
-                        'responseCount' => $data['responseCount']
+                        'responseCount' => $data['responseCount'],
                     ]);
                 }
             };
@@ -103,10 +106,10 @@ class SendClaudeMessageJob implements ShouldQueue
             // Use conversation mode to determine permission mode
             // If mode is 'plan', use 'plan' permission mode; otherwise use 'bypassPermissions'
             $permissionMode = $this->conversation->mode === 'plan' ? 'plan' : 'bypassPermissions';
-            
+
             $result = ClaudeService::processInBackground(
                 $this->message,
-                '--permission-mode ' . $permissionMode,
+                '--permission-mode '.$permissionMode,
                 $this->conversation->claude_session_id,
                 $filename,
                 $this->conversation->project_directory,
@@ -114,28 +117,28 @@ class SendClaudeMessageJob implements ShouldQueue
             );
 
             // Update conversation with the session ID if extracted (in case callback didn't catch it)
-            if ($result['sessionId'] && !$this->conversation->fresh()->claude_session_id) {
+            if ($result['sessionId'] && ! $this->conversation->fresh()->claude_session_id) {
                 $this->conversation->update(['claude_session_id' => $result['sessionId']]);
             }
 
             // Filename is already set at the beginning, no need to update it again
-            
+
             // Add a small delay to ensure the file has been completely written
             // This prevents the frontend from seeing is_processing = false before the response is ready
             sleep(1);
-            
+
             // Capture git diff and save to .git folder
             if ($this->conversation->project_directory) {
                 $this->captureGitDiff();
             }
-            
+
             // Mark conversation as no longer processing
             $this->conversation->update(['is_processing' => false]);
 
             Log::info('Background Claude processing completed', [
                 'conversation_id' => $this->conversation->id,
                 'success' => $result['success'],
-                'sessionId' => $result['sessionId']
+                'sessionId' => $result['sessionId'],
             ]);
         } catch (\Exception $e) {
             // In case of error, mark as not processing
@@ -143,7 +146,7 @@ class SendClaudeMessageJob implements ShouldQueue
 
             Log::error('Error in SendClaudeMessageJob', [
                 'conversation_id' => $this->conversation->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             throw $e; // Re-throw to let the queue handle retry logic
@@ -159,57 +162,209 @@ class SendClaudeMessageJob implements ShouldQueue
             } else {
                 $projectPath = storage_path($this->conversation->project_directory);
             }
-            
+
             // Check if it's a git repository
-            if (!is_dir($projectPath . '/.git')) {
+            if (! is_dir($projectPath.'/.git')) {
                 Log::info('Project directory is not a git repository, skipping diff capture', [
                     'conversation_id' => $this->conversation->id,
-                    'project_path' => $projectPath
+                    'project_path' => $projectPath,
                 ]);
+
                 return;
             }
-            
+
+            // Get the default branch name
+            $defaultBranch = $this->getDefaultBranch($projectPath);
+
             // Use fixed filename for the diff
-            $diffFilename = "project.diff";
-            $diffPath = $projectPath . '/.git/' . $diffFilename;
-            
-            // Execute git diff command
+            $diffFilename = 'project.diff';
+            $diffPath = $projectPath.'/.git/'.$diffFilename;
+
+            // Execute git diff command comparing against default branch
             $command = sprintf(
-                'cd %s && git diff --no-ext-diff --no-color > %s 2>&1',
+                'cd %s && git diff --no-ext-diff --no-color %s...HEAD > %s 2>&1',
                 escapeshellarg($projectPath),
+                escapeshellarg('origin/'.$defaultBranch),
                 escapeshellarg($diffPath)
             );
-            
+
             $output = [];
             $returnCode = null;
             exec($command, $output, $returnCode);
-            
+
             if ($returnCode === 0) {
                 // Check if diff file has content
                 if (filesize($diffPath) > 0) {
-                    Log::info('Git diff captured and saved', [
+                    Log::info('Git diff captured and saved (comparing against '.$defaultBranch.')', [
                         'conversation_id' => $this->conversation->id,
                         'diff_path' => $diffPath,
-                        'size' => filesize($diffPath)
+                        'size' => filesize($diffPath),
+                        'default_branch' => $defaultBranch,
                     ]);
                 } else {
                     // Remove empty diff file
                     @unlink($diffPath);
-                    Log::info('No changes detected in git diff', [
-                        'conversation_id' => $this->conversation->id
+                    Log::info('No changes detected in git diff against '.$defaultBranch, [
+                        'conversation_id' => $this->conversation->id,
+                        'default_branch' => $defaultBranch,
                     ]);
                 }
             } else {
                 Log::warning('Failed to capture git diff', [
                     'conversation_id' => $this->conversation->id,
                     'return_code' => $returnCode,
-                    'output' => implode("\n", $output)
+                    'output' => implode("\n", $output),
+                    'default_branch' => $defaultBranch,
                 ]);
             }
+
+            // Create PR if there are changes
+            $this->createPullRequest($projectPath, $defaultBranch);
+
         } catch (\Exception $e) {
             Log::error('Error capturing git diff', [
                 'conversation_id' => $this->conversation->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function getDefaultBranch(string $workingDirectory): string
+    {
+        try {
+            // Try to get the default branch from remote HEAD
+            $command = sprintf('cd %s && git symbolic-ref refs/remotes/origin/HEAD 2>&1', escapeshellarg($workingDirectory));
+            $output = shell_exec($command);
+
+            if ($output && str_contains($output, 'refs/remotes/origin/')) {
+                return str_replace('refs/remotes/origin/', '', trim($output));
+            }
+        } catch (\Exception $e) {
+            // If that fails, try to get the current branch
+            try {
+                $command = sprintf('cd %s && git rev-parse --abbrev-ref HEAD 2>&1', escapeshellarg($workingDirectory));
+                $output = shell_exec($command);
+                $branch = trim($output);
+                if ($branch && $branch !== 'HEAD') {
+                    return $branch;
+                }
+            } catch (\Exception $e2) {
+                // Ignore and fall back to default
+            }
+        }
+
+        // Fall back to 'main' as it's the most common default now
+        return 'main';
+    }
+
+    protected function createPullRequest(string $projectPath, string $defaultBranch): void
+    {
+        try {
+            // Get current branch name
+            $command = sprintf('cd %s && git rev-parse --abbrev-ref HEAD 2>&1', escapeshellarg($projectPath));
+            $currentBranch = trim(shell_exec($command));
+
+            // Don't create PR if we're on the default branch
+            if ($currentBranch === $defaultBranch || $currentBranch === 'HEAD') {
+                Log::info('Not creating PR - on default branch or detached HEAD', [
+                    'conversation_id' => $this->conversation->id,
+                    'current_branch' => $currentBranch,
+                    'default_branch' => $defaultBranch,
+                ]);
+
+                return;
+            }
+
+            // Check if there are any changes to push
+            $command = sprintf('cd %s && git diff HEAD origin/%s --stat 2>&1',
+                escapeshellarg($projectPath),
+                escapeshellarg($currentBranch)
+            );
+            $diffOutput = shell_exec($command);
+
+            // Push current branch to origin if there are changes
+            $command = sprintf('cd %s && git push -u origin %s 2>&1',
+                escapeshellarg($projectPath),
+                escapeshellarg($currentBranch)
+            );
+            $pushOutput = shell_exec($command);
+
+            Log::info('Pushed branch to origin', [
+                'conversation_id' => $this->conversation->id,
+                'branch' => $currentBranch,
+                'output' => $pushOutput,
+            ]);
+
+            // Check if gh CLI is available
+            $ghCheck = shell_exec('which gh 2>&1');
+            if (empty($ghCheck)) {
+                Log::info('GitHub CLI not available, cannot create PR automatically', [
+                    'conversation_id' => $this->conversation->id,
+                ]);
+
+                return;
+            }
+
+            // Generate PR title and body
+            $prTitle = sprintf('[%s] Changes from conversation #%d',
+                $this->conversation->title ?: 'Automated Changes',
+                $this->conversation->id
+            );
+
+            $prBody = sprintf(
+                "## Summary\n".
+                "Changes generated from conversation: %s\n\n".
+                "## Conversation Details\n".
+                "- Conversation ID: %d\n".
+                "- User: %s\n".
+                "- Mode: %s\n".
+                "- Created: %s\n\n".
+                "## Changes\n".
+                "See the diff for detailed changes.\n\n".
+                "---\n".
+                '*This PR was automatically created by the SendClaudeMessageJob*',
+                $this->conversation->title ?: 'Untitled',
+                $this->conversation->id,
+                $this->conversation->user->name ?? 'Unknown',
+                $this->conversation->mode,
+                $this->conversation->created_at->format('Y-m-d H:i:s')
+            );
+
+            // Create PR using gh CLI
+            $command = sprintf(
+                'cd %s && gh pr create --title %s --body %s --base %s --head %s 2>&1',
+                escapeshellarg($projectPath),
+                escapeshellarg($prTitle),
+                escapeshellarg($prBody),
+                escapeshellarg($defaultBranch),
+                escapeshellarg($currentBranch)
+            );
+
+            $prOutput = shell_exec($command);
+
+            if ($prOutput && str_contains($prOutput, 'github.com')) {
+                Log::info('Successfully created PR', [
+                    'conversation_id' => $this->conversation->id,
+                    'pr_url' => trim($prOutput),
+                    'branch' => $currentBranch,
+                    'base' => $defaultBranch,
+                ]);
+
+                // Optionally update conversation with PR URL
+                $this->conversation->update([
+                    'pr_url' => trim($prOutput),
+                ]);
+            } else {
+                Log::warning('PR creation output unclear', [
+                    'conversation_id' => $this->conversation->id,
+                    'output' => $prOutput,
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error creating pull request', [
+                'conversation_id' => $this->conversation->id,
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -219,12 +374,12 @@ class SendClaudeMessageJob implements ShouldQueue
         Log::error('SendClaudeMessageJob failed permanently', [
             'conversation_id' => $this->conversation->id,
             'error' => $exception->getMessage(),
-            'trace' => $exception->getTraceAsString()
+            'trace' => $exception->getTraceAsString(),
         ]);
 
         $this->conversation->update([
             'is_processing' => false,
-            'error_message' => 'Failed to send message to Claude: ' . $exception->getMessage()
+            'error_message' => 'Failed to send message to Claude: '.$exception->getMessage(),
         ]);
     }
 }
