@@ -169,14 +169,18 @@ class SendClaudeMessageJob implements ShouldQueue
                 return;
             }
             
+            // Get the default branch from origin
+            $defaultBranch = $this->getDefaultBranch($projectPath);
+            
             // Use fixed filename for the diff
             $diffFilename = "project.diff";
             $diffPath = $projectPath . '/.git/' . $diffFilename;
             
-            // Execute git diff command
+            // Execute git diff command comparing current branch to origin's default branch
             $command = sprintf(
-                'cd %s && git diff --no-ext-diff --no-color > %s 2>&1',
+                'cd %s && git diff --no-ext-diff --no-color origin/%s...HEAD > %s 2>&1',
                 escapeshellarg($projectPath),
+                escapeshellarg($defaultBranch),
                 escapeshellarg($diffPath)
             );
             
@@ -190,20 +194,23 @@ class SendClaudeMessageJob implements ShouldQueue
                     Log::info('Git diff captured and saved', [
                         'conversation_id' => $this->conversation->id,
                         'diff_path' => $diffPath,
-                        'size' => filesize($diffPath)
+                        'size' => filesize($diffPath),
+                        'default_branch' => $defaultBranch
                     ]);
                 } else {
                     // Remove empty diff file
                     @unlink($diffPath);
                     Log::info('No changes detected in git diff', [
-                        'conversation_id' => $this->conversation->id
+                        'conversation_id' => $this->conversation->id,
+                        'default_branch' => $defaultBranch
                     ]);
                 }
             } else {
                 Log::warning('Failed to capture git diff', [
                     'conversation_id' => $this->conversation->id,
                     'return_code' => $returnCode,
-                    'output' => implode("\n", $output)
+                    'output' => implode("\n", $output),
+                    'default_branch' => $defaultBranch
                 ]);
             }
         } catch (\Exception $e) {
@@ -212,6 +219,33 @@ class SendClaudeMessageJob implements ShouldQueue
                 'error' => $e->getMessage()
             ]);
         }
+    }
+    
+    protected function getDefaultBranch(string $workingDirectory): string
+    {
+        try {
+            // Try to get the default branch from remote HEAD
+            $command = sprintf('cd %s && git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null', escapeshellarg($workingDirectory));
+            $output = trim(shell_exec($command) ?? '');
+            
+            if ($output && str_contains($output, 'refs/remotes/origin/')) {
+                return str_replace('refs/remotes/origin/', '', $output);
+            }
+        } catch (\Exception $e) {
+            // If that fails, try to get the current branch
+            try {
+                $command = sprintf('cd %s && git rev-parse --abbrev-ref HEAD 2>/dev/null', escapeshellarg($workingDirectory));
+                $branch = trim(shell_exec($command) ?? '');
+                if ($branch && $branch !== 'HEAD') {
+                    return $branch;
+                }
+            } catch (\Exception $e2) {
+                // Ignore and fall back to default
+            }
+        }
+        
+        // Fall back to 'main' as it's the most common default now
+        return 'main';
     }
 
     public function failed(\Throwable $exception): void
