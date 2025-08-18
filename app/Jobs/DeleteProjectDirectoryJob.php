@@ -24,6 +24,12 @@ class DeleteProjectDirectoryJob implements ShouldQueue
 
     public function handle()
     {
+        // Only delete project directory if repository is not blank
+        if (empty($this->conversation->repository)) {
+            Log::info('DeleteProjectDirectoryJob: Skipping deletion - conversation has blank repository (conversation ' . $this->conversation->id . ')');
+            return;
+        }
+
         $projectDirectory = $this->conversation->project_directory;
         
         if (empty($projectDirectory)) {

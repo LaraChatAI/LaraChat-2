@@ -155,8 +155,8 @@ class ConversationsController extends Controller
         $conversation->archived = true;
         $conversation->save();
 
-        // Only dispatch delete job if conversation has blank repository
-        if (empty($conversation->repository)) {
+        // Only dispatch delete job if conversation has a non-blank repository
+        if (!empty($conversation->repository)) {
             DeleteProjectDirectoryJob::dispatch($conversation);
         }
 
