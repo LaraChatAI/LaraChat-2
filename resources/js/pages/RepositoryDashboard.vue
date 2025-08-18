@@ -165,7 +165,7 @@ const handleDelete = async () => {
                                     class="gap-2"
                                 >
                                     <Lightbulb class="h-4 w-4" />
-                                    Planning Mode
+                                    Planning
                                 </Button>
                                 <Button
                                     @click="selectedMode = 'coding'"
@@ -174,12 +174,12 @@ const handleDelete = async () => {
                                     class="gap-2"
                                 >
                                     <Code2 class="h-4 w-4" />
-                                    Coding Mode
+                                    Coding
                                 </Button>
                             </div>
                         </div>
                         
-                        <p class="text-xs text-muted-foreground text-center">Press Cmd+Enter (Mac) or Alt+Enter (Windows) to send</p>
+                        <p class="text-xs text-muted-foreground text-center">Cmd+Enter / Alt+Enter</p>
                     </div>
 
                     <!-- Quick Messages -->
