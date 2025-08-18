@@ -137,8 +137,6 @@ const stopWorker = (workerId?: string) => {
         preserveScroll: true,
         onSuccess: (page: any) => {
             isStopping.value = false;
-            statusType.value = 'success';
-            statusMessage.value = page.props.flash?.message || 'Queue worker stopped successfully!';
             fetchWorkerStatus();
         },
         onError: (errors: any) => {
